@@ -403,6 +403,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!participantId) {
         return res.status(400).json({ message: "ID peserta wajib diisi" });
       }
+export interface CertificateInput {
+  participantId: number;
+  certificateType: string; // ← ini ditambahkan
+  issuedAt?: Date;
+  notes?: string;
+}
 
       const certificate = await storage.createCertificate({
         participantId,
