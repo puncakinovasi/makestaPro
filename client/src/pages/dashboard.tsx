@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { AuthService } from "@/lib/auth";
 import { PesertaDashboard } from "@/components/dashboard/peserta-dashboard";
 import { PemateriDashboard } from "@/components/dashboard/pemateri-dashboard";
-import { PanitiaDashboard } from "@/components/dashboard/panitia-dashboard";
+import { PanitiaDashboardNew } from "@/components/dashboard/panitia-dashboard-new";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
@@ -26,7 +26,7 @@ export default function Dashboard() {
       case 'pemateri':
         return <PemateriDashboard />;
       case 'panitia':
-        return <PanitiaDashboard />;
+        return <PanitiaDashboardNew />;
       default:
         return <div>Role tidak dikenali</div>;
     }

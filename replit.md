@@ -8,6 +8,11 @@ This is a comprehensive Event Management System called "Makesta" built with a mo
 
 Preferred communication style: Simple, everyday language.
 
+## Authentication Credentials
+- Admin/Panitia: username: "admin" or "panitia", password: "password123"
+- Pemateri: username: "pemateri", password: "password123"
+- Peserta: username: "peserta", password: "password123"
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -105,3 +110,17 @@ Preferred communication style: Simple, everyday language.
 - Drizzle configuration for database schema management
 
 The application follows a monorepo structure with shared schema definitions, making it easy to maintain type safety across the full stack while providing a comprehensive event management solution.
+
+## Recent Updates (July 2025)
+- ✅ Complete authentication system with role-based access control
+- ✅ Fully functional admin dashboard with all CRUD operations
+- ✅ Participant data export functionality with CSV download
+- ✅ Material management with file upload/download capabilities
+- ✅ Grade management system with validation
+- ✅ Certificate generation for participants
+- ✅ Attendance tracking system for instructors
+- ✅ Complete API routes for all entities
+- ✅ Working delete functionality for materials and instructors
+- ✅ Real-time data updates with React Query
+- ✅ Responsive design with Tailwind CSS
+- ✅ PostgreSQL database with full relations

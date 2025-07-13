@@ -99,6 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const isValidPassword = await storage.verifyPassword(password, user.password);
       if (!isValidPassword) {
+        console.log(`Login failed for user: ${username}, password: ${password}`);
         return res.status(400).json({ message: "Username atau password salah" });
       }
 
@@ -395,27 +396,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/certificates", authenticateToken, requireRole(['panitia']), upload.single('file'), async (req: any, res) => {
+  app.post("/api/certificates", authenticateToken, requireRole(['panitia']), async (req: any, res) => {
     try {
-      const { participantId, status = 'draft' } = req.body;
-      const file = req.file;
+      const { participantId, certificateType = 'completion', notes = '' } = req.body;
 
       if (!participantId) {
         return res.status(400).json({ message: "ID peserta wajib diisi" });
       }
 
-      let filePath = null;
-      if (file) {
-        filePath = file.path;
-      }
-
       const certificate = await storage.createCertificate({
         participantId,
-        filePath,
-        status,
+        certificateType,
+        issuedAt: new Date(),
+        notes,
       });
 
       res.json({ message: "Sertifikat berhasil dibuat", certificate });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete certificate
+  app.delete("/api/certificates/:id", authenticateToken, requireRole(['panitia']), async (req: any, res) => {
+    try {
+      const certificateId = parseInt(req.params.id);
+      const success = await storage.deleteCertificate(certificateId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Sertifikat tidak ditemukan" });
+      }
+
+      res.json({ message: "Sertifikat berhasil dihapus" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Materials download route
+  app.get("/api/materials/:id/download", authenticateToken, async (req: any, res) => {
+    try {
+      const materialId = parseInt(req.params.id);
+      const material = await storage.getMaterialById(materialId);
+      
+      if (!material) {
+        return res.status(404).json({ message: "Materi tidak ditemukan" });
+      }
+
+      // Increment download count
+      await storage.incrementDownloadCount(materialId);
+
+      if (material.filePath && fs.existsSync(material.filePath)) {
+        res.download(material.filePath, material.title);
+      } else {
+        res.status(404).json({ message: "File tidak ditemukan" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete material
+  app.delete("/api/materials/:id", authenticateToken, requireRole(['panitia']), async (req: any, res) => {
+    try {
+      const materialId = parseInt(req.params.id);
+      const success = await storage.deleteMaterial(materialId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Materi tidak ditemukan" });
+      }
+
+      res.json({ message: "Materi berhasil dihapus" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Delete instructor
+  app.delete("/api/instructors/:id", authenticateToken, requireRole(['panitia']), async (req: any, res) => {
+    try {
+      const instructorId = parseInt(req.params.id);
+      const success = await storage.deleteInstructor(instructorId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Pemateri tidak ditemukan" });
+      }
+
+      res.json({ message: "Pemateri berhasil dihapus" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Create instructor
+  app.post("/api/instructors", authenticateToken, requireRole(['panitia']), async (req: any, res) => {
+    try {
+      const { userId, specialization, cv = '' } = req.body;
+
+      if (!userId || !specialization) {
+        return res.status(400).json({ message: "User ID dan spesialisasi wajib diisi" });
+      }
+
+      const instructor = await storage.createInstructor({
+        userId,
+        specialization,
+        cv,
+        status: 'active',
+      });
+
+      res.json({ message: "Pemateri berhasil ditambahkan", instructor });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -426,6 +515,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const participants = await storage.getParticipants();
       res.json(participants);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Attendance sessions routes
+  app.get("/api/attendance-sessions", authenticateToken, requireRole(['panitia', 'pemateri']), async (req: any, res) => {
+    try {
+      const sessions = await storage.getAttendanceSessions();
+      res.json(sessions);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/attendance-sessions", authenticateToken, requireRole(['panitia', 'pemateri']), async (req: any, res) => {
+    try {
+      const { title, description = '', sessionDate } = req.body;
+      
+      if (!title) {
+        return res.status(400).json({ message: "Judul sesi wajib diisi" });
+      }
+
+      const session = await storage.createAttendanceSession({
+        title,
+        description,
+        sessionDate: sessionDate ? new Date(sessionDate) : new Date(),
+        isActive: true,
+        instructorId: req.user.id,
+      });
+
+      res.json({ message: "Sesi absensi berhasil dibuat", session });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/attendance-sessions/:id/records", authenticateToken, requireRole(['panitia', 'pemateri']), async (req: any, res) => {
+    try {
+      const sessionId = parseInt(req.params.id);
+      const records = await storage.getAttendanceRecords(sessionId);
+      res.json(records);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/attendance-sessions/:id/close", authenticateToken, requireRole(['panitia', 'pemateri']), async (req: any, res) => {
+    try {
+      const sessionId = parseInt(req.params.id);
+      const session = await storage.closeAttendanceSession(sessionId);
+      
+      if (!session) {
+        return res.status(404).json({ message: "Sesi tidak ditemukan" });
+      }
+
+      res.json({ message: "Sesi berhasil ditutup", session });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Attendance records routes
+  app.post("/api/attendance-records", authenticateToken, async (req: any, res) => {
+    try {
+      const { sessionId, participantId, status = 'present' } = req.body;
+      
+      if (!sessionId || !participantId) {
+        return res.status(400).json({ message: "Session ID dan Participant ID wajib diisi" });
+      }
+
+      const record = await storage.createAttendanceRecord({
+        sessionId,
+        participantId,
+        status,
+        recordedAt: new Date(),
+      });
+
+      res.json({ message: "Absensi berhasil dicatat", record });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
