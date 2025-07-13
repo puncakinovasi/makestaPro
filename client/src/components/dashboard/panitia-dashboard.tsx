@@ -15,9 +15,11 @@ import { queryClient } from "@/lib/queryClient";
 import { AuthService } from "@/lib/auth";
 
 export function PanitiaDashboard() {
-  const [activeTab, setActiveTab] = useState("materials");
+  const [activeTab, setActiveTab] = useState("participants");
   const [isCreateMaterialOpen, setIsCreateMaterialOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isGradeDialogOpen, setIsGradeDialogOpen] = useState(false);
+  const [selectedParticipant, setSelectedParticipant] = useState<any>(null);
   const { toast } = useToast();
 
   const { data: participants = [] } = useQuery({
@@ -94,6 +96,95 @@ export function PanitiaDashboard() {
     onError: (error: any) => {
       toast({
         title: "Gagal menghapus materi",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteInstructorMutation = useMutation({
+    mutationFn: async (instructorId: number) => {
+      const response = await fetch(`/api/instructors/${instructorId}`, {
+        method: 'DELETE',
+        headers: AuthService.getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to delete instructor');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/instructors'] });
+      toast({
+        title: "Pemateri berhasil dihapus",
+        description: "Data pemateri telah dihapus dari sistem",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Gagal menghapus pemateri",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const createGradeMutation = useMutation({
+    mutationFn: async (gradeData: any) => {
+      const response = await fetch('/api/grades', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...AuthService.getAuthHeaders(),
+        },
+        body: JSON.stringify(gradeData),
+      });
+      if (!response.ok) throw new Error('Failed to create grade');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/grades'] });
+      toast({
+        title: "Nilai berhasil disimpan",
+        description: "Nilai peserta telah diperbarui",
+      });
+      setIsGradeDialogOpen(false);
+      setSelectedParticipant(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Gagal menyimpan nilai",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const generateCertificateMutation = useMutation({
+    mutationFn: async (participantId: number) => {
+      const response = await fetch('/api/certificates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...AuthService.getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          participantId,
+          certificateType: 'completion',
+          notes: 'Sertifikat kelulusan Makesta',
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to generate certificate');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/certificates'] });
+      toast({
+        title: "Sertifikat berhasil dibuat",
+        description: "Sertifikat telah digenerate untuk peserta",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Gagal membuat sertifikat",
         description: error.message,
         variant: "destructive",
       });
@@ -182,12 +273,76 @@ export function PanitiaDashboard() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="participants">Peserta</TabsTrigger>
               <TabsTrigger value="materials">Materi</TabsTrigger>
               <TabsTrigger value="instructors">Pemateri</TabsTrigger>
               <TabsTrigger value="grades">Nilai</TabsTrigger>
               <TabsTrigger value="certificates">Sertifikat</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="participants" className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold">Data Peserta</h3>
+                <Button onClick={() => {
+                  const csvContent = "data:text/csv;charset=utf-8," + 
+                    "Nama,Email,Telepon,Tempat Lahir,Alamat,SD,SMP,SMA,Tujuan,Minat,Bakat\n" +
+                    participants.map((p: any) => 
+                      `"${p.user.fullName}","${p.user.email}","${p.user.phone}","${p.birthPlace}","${p.address}","${p.elementary}","${p.juniorHigh || ''}","${p.seniorHigh || ''}","${p.purpose}","${p.interests}","${p.talents}"`
+                    ).join("\n");
+                  const encodedUri = encodeURI(csvContent);
+                  const link = document.createElement("a");
+                  link.setAttribute("href", encodedUri);
+                  link.setAttribute("download", "data-peserta.csv");
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Data
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">Nama</th>
+                      <th className="text-left p-2">Email</th>
+                      <th className="text-left p-2">Telepon</th>
+                      <th className="text-left p-2">Tempat Lahir</th>
+                      <th className="text-left p-2">Alamat</th>
+                      <th className="text-left p-2">Pendidikan</th>
+                      <th className="text-left p-2">Minat</th>
+                      <th className="text-left p-2">Bakat</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {participants.map((participant: any) => (
+                      <tr key={participant.id} className="border-b">
+                        <td className="p-2">
+                          <div className="font-medium">{participant.user.fullName}</div>
+                          <div className="text-sm text-gray-500">{participant.user.username}</div>
+                        </td>
+                        <td className="p-2">{participant.user.email}</td>
+                        <td className="p-2">{participant.user.phone}</td>
+                        <td className="p-2">{participant.birthPlace}</td>
+                        <td className="p-2 max-w-xs truncate">{participant.address}</td>
+                        <td className="p-2">
+                          <div className="text-sm">
+                            <div>SD: {participant.elementary}</div>
+                            {participant.juniorHigh && <div>SMP: {participant.juniorHigh}</div>}
+                            {participant.seniorHigh && <div>SMA: {participant.seniorHigh}</div>}
+                          </div>
+                        </td>
+                        <td className="p-2 max-w-xs truncate">{participant.interests}</td>
+                        <td className="p-2 max-w-xs truncate">{participant.talents}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </TabsContent>
 
             <TabsContent value="materials" className="space-y-4">
               <div className="flex justify-between items-center">
@@ -250,10 +405,21 @@ export function PanitiaDashboard() {
                     </div>
                     <h4 className="font-medium mb-2">{material.title}</h4>
                     <p className="text-sm text-gray-600 mb-3">{material.description}</p>
-                    <div className="flex items-center justify-between text-sm text-gray-500">
+                    <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
                       <span>{material.fileSize ? `${(material.fileSize / 1024 / 1024).toFixed(1)} MB` : 'N/A'}</span>
                       <span>{material.downloadCount || 0} downloads</span>
                     </div>
+                    <Button 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => {
+                        const token = localStorage.getItem('makesta_token');
+                        window.open(`/api/materials/${material.id}/download`, '_blank');
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download
+                    </Button>
                   </Card>
                 ))}
               </div>
@@ -296,7 +462,15 @@ export function PanitiaDashboard() {
                             <Button size="sm" variant="ghost">
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="ghost">
+                            <Button 
+                              size="sm" 
+                              variant="ghost"
+                              onClick={() => {
+                                if (confirm('Apakah Anda yakin ingin menghapus pemateri ini?')) {
+                                  deleteInstructorMutation.mutate(instructor.id);
+                                }
+                              }}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -311,10 +485,66 @@ export function PanitiaDashboard() {
             <TabsContent value="grades" className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold">Manajemen Nilai</h3>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Input Nilai
-                </Button>
+                <Dialog open={isGradeDialogOpen} onOpenChange={setIsGradeDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Input Nilai
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Input Nilai Peserta</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.currentTarget);
+                      const participantId = parseInt(formData.get('participantId') as string);
+                      const assignmentScore = parseInt(formData.get('assignmentScore') as string);
+                      const examScore = parseInt(formData.get('examScore') as string);
+                      const finalScore = parseInt(formData.get('finalScore') as string);
+                      
+                      createGradeMutation.mutate({
+                        participantId,
+                        assignmentScore,
+                        examScore,
+                        finalScore,
+                      });
+                    }} className="space-y-4">
+                      <div>
+                        <Label htmlFor="participantId">Peserta</Label>
+                        <select 
+                          id="participantId" 
+                          name="participantId" 
+                          className="w-full p-2 border rounded"
+                          required
+                        >
+                          <option value="">Pilih Peserta</option>
+                          {participants.map((participant: any) => (
+                            <option key={participant.id} value={participant.userId}>
+                              {participant.user.fullName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="assignmentScore">Nilai Tugas</Label>
+                        <Input id="assignmentScore" name="assignmentScore" type="number" min="0" max="100" />
+                      </div>
+                      <div>
+                        <Label htmlFor="examScore">Nilai Ujian</Label>
+                        <Input id="examScore" name="examScore" type="number" min="0" max="100" />
+                      </div>
+                      <div>
+                        <Label htmlFor="finalScore">Nilai Final</Label>
+                        <Input id="finalScore" name="finalScore" type="number" min="0" max="100" />
+                      </div>
+                      <Button type="submit" disabled={createGradeMutation.isPending}>
+                        {createGradeMutation.isPending ? 'Menyimpan...' : 'Simpan Nilai'}
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="overflow-x-auto">
@@ -350,10 +580,38 @@ export function PanitiaDashboard() {
             <TabsContent value="certificates" className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-semibold">Manajemen Sertifikat</h3>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Generate Sertifikat
-                </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Generate Sertifikat
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Generate Sertifikat</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Pilih Peserta untuk Generate Sertifikat</Label>
+                        <div className="grid grid-cols-1 gap-2 mt-2 max-h-60 overflow-y-auto">
+                          {participants.map((participant: any) => (
+                            <div key={participant.id} className="flex items-center justify-between p-2 border rounded">
+                              <span className="font-medium">{participant.user.fullName}</span>
+                              <Button
+                                size="sm"
+                                onClick={() => generateCertificateMutation.mutate(participant.userId)}
+                                disabled={generateCertificateMutation.isPending}
+                              >
+                                {generateCertificateMutation.isPending ? 'Generating...' : 'Generate'}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -368,17 +626,15 @@ export function PanitiaDashboard() {
                           <Download className="h-4 w-4" />
                         </Button>
                         <Button size="sm" variant="ghost">
-                          <Trash2 className="h-4 w-4" />
+                          <Edit className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                     <h4 className="font-medium mb-2">{certificate.participant.fullName}</h4>
-                    <p className="text-sm text-gray-600 mb-3">Sertifikat kelulusan Makesta 2024</p>
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <Badge variant={certificate.status === 'issued' ? 'default' : 'secondary'}>
-                        {certificate.status === 'issued' ? 'Diterbitkan' : 'Draft'}
-                      </Badge>
-                      <span>{new Date(certificate.issuedAt).toLocaleDateString('id-ID')}</span>
+                    <p className="text-sm text-gray-600 mb-3">{certificate.certificateType}</p>
+                    <div className="text-sm text-gray-500">
+                      <div>Generated: {new Date(certificate.issuedAt).toLocaleDateString()}</div>
+                      <div>Type: {certificate.certificateType}</div>
                     </div>
                   </Card>
                 ))}
