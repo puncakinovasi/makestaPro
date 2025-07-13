@@ -34,7 +34,8 @@ export default function Login() {
         title: "Login berhasil",
         description: "Selamat datang kembali!",
       });
-      setLocation("/dashboard");
+      // Force page reload to ensure token is properly loaded
+      window.location.href = "/dashboard";
     } catch (error: any) {
       toast({
         title: "Login gagal",
@@ -89,10 +90,8 @@ export default function Login() {
                   Ingat saya
                 </Label>
               </div>
-              <Link href="/forgot-password">
-                <a className="text-sm text-primary hover:underline">
-                  Lupa password?
-                </a>
+              <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                Lupa password?
               </Link>
             </div>
 
@@ -114,8 +113,8 @@ export default function Login() {
             <div className="text-center">
               <p className="text-sm text-gray-600">
                 Belum punya akun?{" "}
-                <Link href="/register">
-                  <a className="text-primary hover:underline">Daftar sekarang</a>
+                <Link href="/register" className="text-primary hover:underline">
+                  Daftar sekarang
                 </Link>
               </p>
             </div>
