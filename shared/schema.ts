@@ -243,3 +243,10 @@ export type InsertGrade = z.infer<typeof insertGradeSchema>;
 export type Certificate = typeof certificates.$inferSelect;
 export type InsertCertificate = z.infer<typeof insertCertificateSchema>;
 export type Registration = z.infer<typeof registrationSchema>;
+
+export interface CertificateInput {
+  participantId: number;
+  certificateType: string;
+  issuedAt?: Date;
+  notes?: string;
+}
